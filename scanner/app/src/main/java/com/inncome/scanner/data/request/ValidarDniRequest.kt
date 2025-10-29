@@ -1,4 +1,5 @@
 package com.inncome.scanner.data.request
 
-
-data class ValidarDniRequest(val dni: String)
+data class ValidarDniRequest(
+    val documentNumber: String
+)

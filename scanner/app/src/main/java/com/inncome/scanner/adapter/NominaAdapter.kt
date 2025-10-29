@@ -3,12 +3,12 @@ package com.inncome.scanner.adapter
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.inncome.scanner.data.NominaDetail
+import com.inncome.scanner.data.entities.Nomina
 import com.inncome.scanner.databinding.ItemNominaBinding
 
 class NominaAdapter(
-    private val nominas: List<NominaDetail>,
-    private val onNominaSelected: (NominaDetail) -> Unit
+    private val nominas: List<Nomina>,
+    private val onNominaClick: (Nomina) -> Unit
 ) : RecyclerView.Adapter<NominaAdapter.NominaViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NominaViewHolder {
@@ -24,31 +24,28 @@ class NominaAdapter(
         holder.bind(nominas[position])
     }
 
-    override fun getItemCount() = nominas.size
+    override fun getItemCount(): Int = nominas.size
 
     inner class NominaViewHolder(
         private val binding: ItemNominaBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(nomina: NominaDetail) {
-            binding.apply {
-                tvTipoNomina.text = nomina.incomeType
-                tvActividad.text = nomina.actividad?.activityName ?: "Sin actividad"
-                tvEstado.text = nomina.status
-                tvFechaCreacion.text = "Creada: ${nomina.createdAt}"
-                tvCantidadIngresos.text = "${nomina.ingresos.size} ingreso(s) previo(s)"
+        fun bind(nomina: Nomina) {
+            binding.tvNominaActividad.text = nomina.actividad.activityName
+            binding.tvNominaIncomeType.text = nomina.incomeType
+            binding.tvNominaStatus.text = nomina.status
 
-                // Color según estado
-                val colorEstado = when (nomina.status) {
-                    "ACTIVO" -> android.graphics.Color.parseColor("#00FF00")
-                    "PENDIENTE" -> android.graphics.Color.parseColor("#FFAA00")
-                    else -> android.graphics.Color.parseColor("#FF0000")
-                }
-                tvEstado.setTextColor(colorEstado)
+            // Color según estado
+            val statusColor = when (nomina.status.uppercase()) {
+                "ACTIVO" -> 0xFF43E9E8.toInt()
+                "INACTIVO" -> 0xFFFF6B6B.toInt()
+                else -> 0xFFCCCCCC.toInt()
+            }
+            binding.tvNominaStatus.setTextColor(statusColor)
 
-                root.setOnClickListener {
-                    onNominaSelected(nomina)
-                }
+            // Click listener
+            binding.root.setOnClickListener {
+                onNominaClick(nomina)
             }
         }
     }

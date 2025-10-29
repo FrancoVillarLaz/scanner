@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="8dp"
+    android:layout_marginEnd="8dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
+    app:cardBackgroundColor="#1a1f4d">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp">
+
+        <!-- Indicador de estado -->
+        <View
+            android:id="@+id/statusIndicator"
+            android:layout_width="4dp"
+            android:layout_height="0dp"
+            android:background="#43E9E8"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <!-- DNI y Tipo -->
+        <TextView
+            android:id="@+id/tvDniHistory"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toEndOf="@id/statusIndicator"
+            app:layout_constraintEnd_toStartOf="@id/tvTipoHistory"
+            tools:text="DNI: 12.345.678" />
+
+        <TextView
+            android:id="@+id/tvTipoHistory"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#43E9E8"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:background="@drawable/status_badge_background"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="ENTRADA" />
+
+        <!-- Nombre -->
+        <TextView
+            android:id="@+id/tvNombreHistory"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="6dp"
+            android:textSize="14sp"
+            android:textColor="#CCCCCC"
+            app:layout_constraintTop_toBottomOf="@id/tvDniHistory"
+            app:layout_constraintStart_toEndOf="@id/statusIndicator"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="Juan Pérez García" />
+
+        <!-- Actividad -->
+        <TextView
+            android:id="@+id/tvActividadHistory"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            app:layout_constraintTop_toBottomOf="@id/tvNombreHistory"
+            app:layout_constraintStart_toEndOf="@id/statusIndicator"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="Electricista" />
+
+        <!-- Fecha -->
+        <TextView
+            android:id="@+id/tvFechaHistory"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            app:layout_constraintTop_toBottomOf="@id/tvActividadHistory"
+            app:layout_constraintStart_toEndOf="@id/statusIndicator"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            tools:text="22/10/2025 14:30:45" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.cardview.widget.CardView>

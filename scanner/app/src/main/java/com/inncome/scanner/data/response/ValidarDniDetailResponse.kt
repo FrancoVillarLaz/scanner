@@ -1,10 +1,8 @@
 package com.inncome.scanner.data.response
 
-import com.inncome.scanner.data.NominaDetail
+import com.inncome.scanner.data.entities.Nomina
 
 data class ValidarDniDetailResponse(
-    val success: Boolean,
-    val message: String,
-    val nominas: List<NominaDetail>? = null,  // Para código 200
-    val data: IngresoGeneradoData? = null      // Para código 201
+    val operario: OperarioDetail,
+    val nominas: List<Nomina>
 )

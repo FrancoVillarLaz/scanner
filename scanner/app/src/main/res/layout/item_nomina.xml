@@ -5,79 +5,93 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="4dp"
+    android:layout_marginStart="8dp"
+    android:layout_marginEnd="8dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="#2a2f5d"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground">
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/cardContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:padding="16dp">
 
+        <!-- Icono de actividad -->
+        <ImageView
+            android:id="@+id/ivActivityIcon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/icon_circle_background"
+            android:padding="12dp"
+            android:src="@android:drawable/ic_menu_edit"
+            android:tint="#43E9E8"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <!-- Nombre de la actividad -->
         <TextView
-            android:id="@+id/tvTipoNomina"
+            android:id="@+id/tvNominaActividad"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:textColor="#000000"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toStartOf="@id/tvEstado"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="POLIZA_PARTICULAR" />
-
-        <TextView
-            android:id="@+id/tvEstado"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#00FF00"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="ACTIVO" />
-
-        <TextView
-            android:id="@+id/tvActividad"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#333333"
+            android:layout_marginStart="12dp"
             android:textSize="16sp"
             android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvTipoNomina"
-            tools:text="Mantenimiento General" />
+            android:textColor="#FFFFFF"
+            android:maxLines="1"
+            android:ellipsize="end"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toEndOf="@id/ivActivityIcon"
+            app:layout_constraintEnd_toStartOf="@id/tvNominaStatus"
+            tools:text="Albañil" />
 
+        <!-- Tipo de ingreso -->
         <TextView
-            android:id="@+id/tvFechaCreacion"
+            android:id="@+id/tvNominaIncomeType"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#666666"
-            android:textSize="14sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvActividad"
-            tools:text="Creada: 12/08/2025" />
-
-        <TextView
-            android:id="@+id/tvCantidadIngresos"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
             android:layout_marginTop="4dp"
-            android:textColor="#999999"
             android:textSize="12sp"
-            app:layout_constraintBottom_toBottomOf="parent"
+            android:textColor="#AAAAAA"
+            app:layout_constraintTop_toBottomOf="@id/tvNominaActividad"
+            app:layout_constraintStart_toEndOf="@id/ivActivityIcon"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvFechaCreacion"
-            tools:text="2 ingreso(s) previo(s)" />
+            tools:text="INNCOME" />
+
+        <!-- Estado -->
+        <TextView
+            android:id="@+id/tvNominaStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#43E9E8"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:background="@drawable/status_badge_background"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="ACTIVO" />
+
+        <!-- Flecha indicadora -->
+        <ImageView
+            android:id="@+id/ivArrow"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_send"
+            android:tint="#43E9E8"
+            android:rotation="0"
+            app:layout_constraintTop_toBottomOf="@id/tvNominaStatus"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

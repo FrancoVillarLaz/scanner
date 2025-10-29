@@ -1,7 +1,8 @@
 package com.inncome.scanner.data.response
 
+import com.inncome.scanner.data.entities.Ingreso
+
 data class IngresoGeneradoResponse(
-    val success: Boolean,
     val message: String,
-    val data: IngresoGeneradoData?
+    val data: Ingreso?
 )
