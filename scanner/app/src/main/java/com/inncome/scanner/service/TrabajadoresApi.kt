@@ -1,5 +1,6 @@
 package com.inncome.scanner.service
 
+import com.inncome.scanner.data.entities.Ingreso
 import com.inncome.scanner.data.request.RegistrarIngresoRequest
 import com.inncome.scanner.data.request.ValidarDniRequest
 import com.inncome.scanner.data.response.HistoryResponse
@@ -22,18 +23,21 @@ interface  TrabajadoresApi {
         "X-Rol: GUARDIA"
     )
     @POST("trabajadores-service/operario/document-number")
-    suspend fun validarDniOperario(@Header ("X-Establecimiento-id") idEstablecimiento: Long,  @Body request: ValidarDniRequest): Response<ValidarDniDetailResponse>
+    suspend fun validarDniOperario(
+        @Header ("X-Establecimiento-id") idEstablecimiento: Long,
+        @Body request: ValidarDniRequest
+    ): Response<ValidarDniDetailResponse>
 
     @Headers(
         "Content-Type: application/json",
         "Accept: application/json",
         "X-Rol: GUARDIA"
     )
-    @POST("trabajadores-service/ingreso/nomina/{nominaId}")
+    @POST("trabajadores-service/ingreso/")
     suspend fun registrarIngresoPorNomina(
         @Header ("X-Establecimiento-id") idEstablecimiento: Long,
         @Body request: RegistrarIngresoRequest
-    ): Response<IngresoGeneradoResponse>
+    ): Response<Ingreso>
 
     @Headers(
         "Content-Type: application/json",
@@ -43,7 +47,11 @@ interface  TrabajadoresApi {
     @GET("trabajadores-service/ingreso/district")
     suspend fun obtenerHistorialIngresos(
         @Query("sort") sortBy: String = "id,DESC",
+        @Query("page") page: Int?,
+        @Query("size") size: Int?,
         @Header("X-Establecimiento-Id") establecimientoId: Long
     ): Response<HistoryResponse>
+
+    fun obtenerNominasPorDni(establecimientoId: Long, validarDniRequest: com.inncome.scanner.data.request.ValidarDniRequest): Any
 
 }

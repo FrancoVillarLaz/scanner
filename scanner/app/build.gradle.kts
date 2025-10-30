@@ -62,4 +62,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
 
     implementation("com.google.android.material:material:1.11.0")
+
+    // lo del viewModel ojala rinda
+    implementation("androidx.activity:activity-ktx:1.8.0")
+// traer viewModels()
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+// viewModelScope
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
+// repeatOnLifecycle, lifecycleScope
+
 }

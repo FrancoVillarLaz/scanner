@@ -7,40 +7,37 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.ViewGroup
 import android.view.Window
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.inncome.scanner.R
 import com.inncome.scanner.adapter.NominaAdapter
 import com.inncome.scanner.data.entities.Nomina
 import com.inncome.scanner.databinding.DialogNominaSelectionBinding
+import com.inncome.scanner.databinding.ItemNominaBinding
 
 class NominaSelectionDialog(
     context: Context,
     private val nominas: List<Nomina>,
     private val onNominaSelected: (Nomina) -> Unit
-) : Dialog(context) {
+) : Dialog(context, R.style.CustomDialogTheme) {
 
     private lateinit var binding: DialogNominaSelectionBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestWindowFeature(Window.FEATURE_NO_TITLE)
         binding = DialogNominaSelectionBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Configurar ventana
-        window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        window?.setLayout(
-            (context.resources.displayMetrics.widthPixels * 0.9).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
         setupRecyclerView()
-        setupButtons()
+        setupCancelButton()
     }
 
     private fun setupRecyclerView() {
-        val adapter = NominaAdapter(nominas) { nominaSeleccionada ->
-            onNominaSelected(nominaSeleccionada)
+        val adapter = NominaAdapter(nominas) { nomina ->
+            onNominaSelected(nomina)
             dismiss()
         }
 
@@ -50,9 +47,11 @@ class NominaSelectionDialog(
         }
     }
 
-    private fun setupButtons() {
+    private fun setupCancelButton() {
         binding.btnCancelar.setOnClickListener {
             dismiss()
         }
     }
+
+
 }

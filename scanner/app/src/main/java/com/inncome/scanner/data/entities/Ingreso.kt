@@ -5,5 +5,5 @@ data class Ingreso(
     val createdAt: String,
     val accessType: AccessType,
     val pdfName: String?,
-    val nomina: String // Nombre completo para mostrar en UI
+    val nomina: String?
 )

@@ -13,33 +13,37 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.inncome.scanner.adapter.HistoryAdapter
-import com.inncome.scanner.config.RetrofitClient
-import com.inncome.scanner.data.entities.HistoryItem
-import com.inncome.scanner.data.entities.Nomina
 import com.inncome.scanner.databinding.ActivityMainBinding
-import com.inncome.scanner.dialog.NominaSelectionDialog
 import com.inncome.scannertest.PDF417Analyzer
-import kotlinx.coroutines.launch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-
 import android.view.View
+import androidx.activity.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.inncome.scanner.data.request.RegistrarIngresoRequest
-import com.inncome.scanner.data.request.ValidarDniRequest
+import com.inncome.scanner.dialog.NominaSelectionDialog
+import com.inncome.scanner.ui.HistoryState
+import com.inncome.scanner.ui.HistoryViewModel
+import com.inncome.scanner.ui.ValidationResult
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        private const val TAG = "PDF417Scanner"
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
+    }
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraExecutor: ExecutorService
-    private var lastScanTime = 0L
-    private var isProcessing = false
-
-    // BottomSheet
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<*>
     private lateinit var historyAdapter: HistoryAdapter
 
-    // Obtener del token JWT
+    private val historyViewModel: HistoryViewModel by viewModels()
+
+    private var lastScanTime = 0L
+    private var isProcessing = false
     private val establecimientoId: Long = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,18 +53,146 @@ class MainActivity : AppCompatActivity() {
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Configurar BottomSheet
         setupBottomSheet()
+        setupRecyclerView()
+        observeViewModel()
 
-        // Cargar historial inicial
-        cargarHistorialIngresos()
+        // ✅ Cargar historial inicial
+        historyViewModel.cargarHistorialInicial(establecimientoId)
 
+        // ✅ Iniciar cámara
         if (allPermissionsGranted()) {
             startCamera()
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
+        // ✅ Configurar scan frame
+        setupScanFrame()
+    }
+
+    // ✅ Configurar RecyclerView y paginación
+    private fun setupRecyclerView() {
+        historyAdapter = HistoryAdapter()
+
+        binding.rvHistoryIngresos.apply {
+            adapter = historyAdapter
+            layoutManager = LinearLayoutManager(this@MainActivity)
+
+            // ✅ Callback de paginación
+            historyAdapter.onLoadMore = {
+                historyViewModel.cargarMasDatos(establecimientoId)
+            }
+        }
+    }
+
+    // ✅ Observar cambios del ViewModel
+    private fun observeViewModel() {
+        // Observar estado del historial
+        lifecycleScope.launch {
+            historyViewModel.historial.collect { state ->
+                when (state) {
+                    is HistoryState.Loading -> {
+                        // Opcional: Mostrar loading
+                    }
+                    is HistoryState.Success -> {
+                        historyAdapter.submitList(state.items)
+                        historyAdapter.setLoadingState(false)
+
+                        binding.tvHistoryCount.text =
+                            "${state.totalCount} registro${if (state.totalCount != 1) "s" else ""}"
+                        binding.emptyStateHistory.visibility = View.GONE
+                        binding.rvHistoryIngresos.visibility = View.VISIBLE
+
+                        Log.d(TAG, "✅ Historial actualizado: ${state.items.size} items")
+                    }
+                    is HistoryState.Error -> {
+                        Toast.makeText(this@MainActivity, state.message, Toast.LENGTH_SHORT).show()
+                        historyAdapter.setLoadingState(false)
+                    }
+                    is HistoryState.Empty -> {
+                        mostrarEstadoVacio()
+                        historyAdapter.setLoadingState(false)
+                    }
+                }
+            }
+        }
+
+        // Observar resultado de validación
+        lifecycleScope.launch {
+            historyViewModel.validationResult.collect { result ->
+                result?.let {
+                    handleValidationResult(it)
+                    historyViewModel.clearValidationResult()
+                }
+            }
+        }
+
+        // Observar estado de carga
+        lifecycleScope.launch {
+            historyViewModel.isLoading.collect { isLoading ->
+                historyAdapter.setLoadingState(isLoading)
+            }
+        }
+    }
+
+    // ✅ Manejar resultados de validación
+    private fun handleValidationResult(result: ValidationResult) {
+        when (result) {
+            is ValidationResult.MultipleNominas -> {
+                mostrarDialogoSeleccionNomina(result.dni, result.nominas)
+            }
+            is ValidationResult.IngresoRegistrado -> {
+                Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
+
+                // ✅ Recargar último ingreso después de un pequeño delay
+                binding.root.postDelayed({
+                    historyViewModel.cargarUltimoIngreso(establecimientoId)
+                    animarContador()
+                }, 500)
+
+                isProcessing = false
+            }
+            is ValidationResult.Error -> {
+                Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                isProcessing = false
+            }
+            is ValidationResult.SingleNomina -> {
+                // Este caso podría no usarse si el backend siempre retorna 201 o 200
+                isProcessing = false
+            }
+        }
+    }
+
+    // ✅ Configurar BottomSheet
+    private fun setupBottomSheet() {
+        bottomSheetBehavior = BottomSheetBehavior.from(binding.bottomSheetHistory)
+
+        bottomSheetBehavior.apply {
+            peekHeight = 220
+            state = BottomSheetBehavior.STATE_COLLAPSED
+            isHideable = false
+            isFitToContents = false
+
+            addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+                override fun onStateChanged(bottomSheet: View, newState: Int) {
+                    when (newState) {
+                        BottomSheetBehavior.STATE_EXPANDED -> {
+                            Log.d(TAG, "BottomSheet expandido")
+                        }
+                        BottomSheetBehavior.STATE_COLLAPSED -> {
+                            Log.d(TAG, "BottomSheet colapsado")
+                        }
+                    }
+                }
+
+                override fun onSlide(bottomSheet: View, slideOffset: Float) {}
+            })
+        }
+    }
+
+    // ✅ Configurar frame de escaneo
+    private fun setupScanFrame() {
         binding.root.post {
             val loc = IntArray(2)
             binding.scanFrame.getLocationOnScreen(loc)
@@ -77,111 +209,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupBottomSheet() {
-        // Configurar adapter
-        historyAdapter = HistoryAdapter()
-
-        binding.rvHistoryIngresos.apply {
-            layoutManager = LinearLayoutManager(this@MainActivity)
-            adapter = historyAdapter
-        }
-
-        // Configurar BottomSheet behavior
-        bottomSheetBehavior = BottomSheetBehavior.from(binding.bottomSheetHistory)
-
-        bottomSheetBehavior.apply {
-            // Mostrar solo el peek (primera card)
-            peekHeight = 220 // Ajusta según necesites
-            state = BottomSheetBehavior.STATE_COLLAPSED
-            isHideable = false
-
-            // Callback para estados
-            addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
-                override fun onStateChanged(bottomSheet: View, newState: Int) {
-                    when (newState) {
-                        BottomSheetBehavior.STATE_EXPANDED -> {
-                            Log.d(TAG, "BottomSheet expandido")
-                        }
-                        BottomSheetBehavior.STATE_COLLAPSED -> {
-                            Log.d(TAG, "BottomSheet colapsado")
-                        }
-                    }
-                }
-
-                override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                    // Opcional: animar algo mientras se desliza
-                }
-            })
-        }
-    }
-
-    private fun cargarHistorialIngresos() {
-        lifecycleScope.launch {
-            try {
-                val apiService = RetrofitClient.getApiService()
-                val response = apiService.obtenerHistorialIngresos("id,DESC", establecimientoId)
-
-                Log.d(TAG, "URL de la petición: ${response.raw().request.url}")
-                Log.d(TAG, "Response type: ${response.body()?.content?.javaClass}")
-
-                if (response.isSuccessful && response.body() != null) {
-                    val historyResponse = response.body()!!
-                    val historial = historyResponse.content
-
-                    Log.d(TAG, "Historial type: ${historial::class.java}")
-                    Log.d(TAG, "First item type: ${historial.firstOrNull()?.javaClass}")
-
-                    if (historial.isNotEmpty()) {
-                        historyAdapter.submitList(historial)
-                        binding.tvHistoryCount.text = "${historyResponse.pagination.totalElements} registro${if (historyResponse.pagination.totalElements != 1) "s" else ""}"
-                        binding.emptyStateHistory.visibility = View.GONE
-                        binding.rvHistoryIngresos.visibility = View.VISIBLE
-                    } else {
-                        mostrarEstadoVacio()
-                    }
-                } else {
-                    Log.e(TAG, "Error al cargar historial: ${response.code()}. Mensaje: ${response.message()}")
-                    mostrarEstadoVacio()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error al cargar historial (Excepción)", e)
-                mostrarEstadoVacio()
-            }
-        }
-    }
-
-    private fun mostrarEstadoVacio() {
-        binding.emptyStateHistory.visibility = View.VISIBLE
-        binding.rvHistoryIngresos.visibility = View.GONE
-        binding.tvHistoryCount.text = "0 registros"
-    }
-
-    private fun agregarIngresoAlHistorial(ingreso: HistoryItem) {
-        val listaActual = historyAdapter.currentList.toMutableList()
-        listaActual.add(0, ingreso)
-        historyAdapter.submitList(listaActual)
-
-        // Actualizar contador
-        binding.tvHistoryCount.text = "${listaActual.size} registro${if (listaActual.size != 1) "s" else ""}"
-
-        // Mostrar RecyclerView si estaba vacío
-        if (binding.emptyStateHistory.visibility == View.VISIBLE) {
-            binding.emptyStateHistory.visibility = View.GONE
-            binding.rvHistoryIngresos.visibility = View.VISIBLE
-        }
-
-        // Scroll al inicio para ver el nuevo registro
-        binding.rvHistoryIngresos.scrollToPosition(0)
-
-        // Expandir brevemente el bottomSheet para mostrar el nuevo ingreso
-        if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
-            bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
-            binding.root.postDelayed({
-                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
-            }, 2500)
-        }
-    }
-
+    // ✅ Iniciar cámara
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
@@ -225,6 +253,7 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    // ✅ Configurar autofocus
     private fun setupAutoFocus(camera: Camera) {
         binding.viewFinder.post {
             val factory = binding.viewFinder.meteringPointFactory
@@ -254,6 +283,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ✅ Procesar código PDF417
     private fun procesarPDF417(data: String) {
         val dni = extraerDNI(data)
 
@@ -263,127 +293,22 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        lifecycleScope.launch {
-            try {
-                val apiService = RetrofitClient.getApiService()
-                val response = apiService.validarDniOperario(
-                    establecimientoId,
-                    ValidarDniRequest(dni)
-                )
-
-                Log.d(TAG, "Response code: ${response.code()}")
-
-                when (response.code()) {
-                    200 -> {
-                        // Múltiples nóminas - mostrar diálogo de selección
-                        val body = response.body()
-                        Log.d(TAG, "Body: $body")
-
-                        if (body?.nominas != null && body.nominas.isNotEmpty()) {
-                            mostrarDialogoSeleccionNomina(dni, body.nominas)
-                        } else {
-                            Toast.makeText(
-                                this@MainActivity,
-                                "No se encontraron nóminas",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                    201 -> {
-                        // Ingreso generado exitosamente
-                        val body = response.body()
-                        Log.d(TAG, "Ingreso exitoso: $body")
-
-                        // TODO: Aquí necesitas crear un HistoryItem con los datos de la respuesta
-                        // Por ahora solo mostramos el toast
-                        Toast.makeText(
-                            this@MainActivity,
-                            "✓ Ingreso registrado exitosamente",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    401 -> {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "No autorizado para realizar esta consulta",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    404 -> {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Operario no encontrado o sin nóminas activas",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    else -> {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Error: ${response.code()} - ${response.message()}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error al validar DNI", e)
-                Toast.makeText(
-                    this@MainActivity,
-                    "Error de conexión: ${e.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-            } finally {
-                isProcessing = false
-            }
-        }
+        // ✅ Delegar al ViewModel
+        historyViewModel.validarDni(dni, establecimientoId)
     }
 
-    private fun mostrarDialogoSeleccionNomina(dni: String, nominas: List<Nomina>) {
+    // ✅ Mostrar diálogo de selección de nómina
+    private fun mostrarDialogoSeleccionNomina(dni: String, nominas: List<com.inncome.scanner.data.entities.Nomina>) {
         val dialog = NominaSelectionDialog(this, nominas) { nominaSeleccionada ->
-            registrarIngresoPorNomina(dni, nominaSeleccionada.id)
+            historyViewModel.registrarIngresoPorNomina(
+                establecimientoId,
+                nominaSeleccionada.id.toString()
+            )
         }
         dialog.show()
     }
 
-    private fun registrarIngresoPorNomina(dni: String, nominaId: Long) {
-        lifecycleScope.launch {
-            try {
-                val apiService = RetrofitClient.getApiService()
-                val response = apiService.registrarIngresoPorNomina(
-                    nominaId,
-                    RegistrarIngresoRequest(
-                        dni = dni,
-                        tipo = "ENTRADA"
-                    )
-                )
-
-                if (response.isSuccessful && response.body()?.data != null) {
-                    val data = response.body()!!.data!!
-
-                    // TODO: Aquí necesitas crear un HistoryItem con los datos de la respuesta
-                    // Por ahora solo mostramos el toast
-                    Toast.makeText(
-                        this@MainActivity,
-                        "✓ Ingreso registrado exitosamente",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Error al registrar ingreso: ${response.code()}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error al registrar ingreso", e)
-                Toast.makeText(
-                    this@MainActivity,
-                    "Error: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
-
+    // ✅ Extraer DNI del código PDF417
     private fun extraerDNI(data: String): String {
         return if (data.contains("@")) {
             val campos = data.split("@")
@@ -397,12 +322,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ✅ Mostrar estado vacío
+    private fun mostrarEstadoVacio() {
+        binding.emptyStateHistory.visibility = View.VISIBLE
+        binding.rvHistoryIngresos.visibility = View.GONE
+        binding.tvHistoryCount.text = "0 registros"
+    }
+
+    // ✅ Animación del contador
+    private fun animarContador() {
+        binding.tvHistoryCount.animate()
+            .scaleX(1.2f)
+            .scaleY(1.2f)
+            .setDuration(200)
+            .withEndAction {
+                binding.tvHistoryCount.animate()
+                    .scaleX(1.0f)
+                    .scaleY(1.0f)
+                    .setDuration(200)
+                    .start()
+            }
+            .start()
+    }
+
+    // ✅ Verificar permisos
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults: IntArray
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
@@ -418,11 +369,5 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
-    }
-
-    companion object {
-        private const val TAG = "PDF417Scanner"
-        private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
     }
 }

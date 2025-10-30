@@ -1,4 +1,4 @@
-package com.inncome.scanner
+package com.inncome.scanner.activities
 
 import android.content.Intent
 import android.os.Bundle
@@ -7,6 +7,7 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.inncome.scanner.MainActivity
 import com.inncome.scanner.config.RetrofitClient
 import com.inncome.scanner.data.request.LoginRequest
 import com.inncome.scanner.databinding.ActivityLoginBinding

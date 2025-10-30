@@ -1,5 +1,6 @@
 package com.inncome.scanner.adapter
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
@@ -12,6 +13,13 @@ import java.util.Locale
 
 class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder>(HistoryDiffCallback) {
 
+    private val TAG = "HistoryAdapter"
+    private val currentItems = mutableListOf<HistoryItem>()
+
+    // Listener para paginación
+    var onLoadMore: (() -> Unit)? = null
+    private var isLoading = false
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HistoryViewHolder {
         val binding = ItemHistoryBinding.inflate(
             LayoutInflater.from(parent.context),
@@ -23,7 +31,38 @@ class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder
 
     override fun onBindViewHolder(holder: HistoryViewHolder, position: Int) {
         val historyItem = getItem(position)
+
+        // ✅ Verificar si necesitamos cargar más datos (paginación)
+        if (position >= itemCount - 5 && !isLoading) {
+            onLoadMore?.invoke()
+        }
+
         holder.bind(historyItem)
+    }
+
+    override fun submitList(list: List<HistoryItem>?) {
+        Log.d(TAG, "submitList llamado con ${list?.size} items")
+
+        // Validar datos antes de enviar al adapter
+        list?.forEachIndexed { index, item ->
+            if (item.nomina.operario == null) {
+                Log.e(TAG, "❌ OPERARIO NULL en submitList - Index: $index, ID: ${item.id}")
+            }
+        }
+
+        super.submitList(list)
+
+        // Mantener copia para debugging
+        currentItems.clear()
+        if (list != null) {
+            currentItems.addAll(list)
+        }
+
+        isLoading = false
+    }
+
+    fun setLoadingState(loading: Boolean) {
+        isLoading = loading
     }
 
     inner class HistoryViewHolder(
@@ -31,44 +70,72 @@ class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(historyItem: HistoryItem) {
+            // ✅ VALIDACIÓN DEFENSIVA CRÍTICA
+            if (historyItem.nomina.operario == null) {
+                Log.e(TAG, "🛑 Bind con operario null - Posición: $adapterPosition, ID: ${historyItem.id}")
+                manejarOperarioNull(historyItem)
+                return
+            }
+
+            // ✅ Bind seguro solo si los datos son válidos
+            bindSeguro(historyItem)
+        }
+
+        private fun bindSeguro(historyItem: HistoryItem) {
+            val operario = historyItem.nomina.operario!!
+
             // Formatear DNI (agregar puntos)
-            val dniFormateado = formatearDNI(historyItem.operario.documentNumber)
+            val dniFormateado = formatearDNI(operario.documentNumber)
             binding.tvDniHistory.text = "DNI: $dniFormateado"
 
             // Nombre completo
-            val nombreCompleto = "${historyItem.operario.firstName} ${historyItem.operario.lastName}"
+            val nombreCompleto = "${operario.firstName} ${operario.lastName}"
             binding.tvNombreHistory.text = nombreCompleto
 
-            // Actividad/Oficio
-            binding.tvActividadHistory.text = historyItem.actividad.activityName
+            // Actividad/Oficio - con validación
+            val actividadText = historyItem.nomina.actividad?.activityName ?: "Actividad no disponible"
+            binding.tvActividadHistory.text = actividadText
 
-            // Tipo de ingreso (ENTRADA/SALIDA)
-            val tipoIngreso = when (historyItem.incomeType.uppercase()) {
-                "INCOME", "INNCOME" -> "ENTRADA"
-                "OUTCOME" -> "SALIDA"
-                else -> historyItem.incomeType
+            // ✅ CORRECCIÓN: Mapeo correcto de accessType
+            val (tipoIngreso, color) = when (historyItem.accessType?.uppercase() ?: "") {
+                "ENTRADA", "RE_INGRESO" -> Pair("ENTRADA", 0xFF43E9E8.toInt())
+                "SALIDA" -> Pair("SALIDA", 0xFFFF6B6B.toInt())
+                else -> Pair(historyItem.accessType ?: "DESCONOCIDO", 0xFFCCCCCC.toInt())
             }
+
             binding.tvTipoHistory.text = tipoIngreso
-
-            // Color según tipo de ingreso
-            val colorTipo = when (tipoIngreso.uppercase()) {
-                "ENTRADA" -> 0xFF43E9E8.toInt()
-                "SALIDA" -> 0xFFFF6B6B.toInt()
-                else -> 0xFFCCCCCC.toInt()
-            }
-            binding.tvTipoHistory.setTextColor(colorTipo)
-
-            // Color del indicador de estado
-            val colorIndicator = when (historyItem.status.uppercase()) {
-                "ACTIVO" -> 0xFF43E9E8.toInt()
-                "INACTIVO" -> 0xFFFF6B6B.toInt()
-                else -> 0xFFCCCCCC.toInt()
-            }
-            binding.statusIndicator.setBackgroundColor(colorIndicator)
+            binding.tvTipoHistory.setTextColor(color)
+            binding.statusIndicator.setBackgroundColor(color)
 
             // Formatear fecha
             val fechaFormateada = formatearFecha(historyItem.createdAt)
             binding.tvFechaHistory.text = fechaFormateada
+
+            // Log para debugging
+            Log.d(TAG, "Item ${historyItem.id}: accessType=${historyItem.accessType} -> $tipoIngreso")
+        }
+
+        private fun manejarOperarioNull(historyItem: HistoryItem) {
+            // Mostrar datos alternativos o placeholder
+            binding.tvDniHistory.text = "DNI: No disponible"
+            binding.tvNombreHistory.text = "Operario no disponible"
+            binding.tvActividadHistory.text = historyItem.nomina.actividad?.activityName ?: "Actividad no disponible"
+
+            val (tipoIngreso, color) = when (historyItem.accessType?.uppercase() ?: "") {
+                "ENTRADA", "RE_INGRESO" -> Pair("ENTRADA", 0xFF43E9E8.toInt())
+                "SALIDA" -> Pair("SALIDA", 0xFFFF6B6B.toInt())
+                else -> Pair(historyItem.accessType ?: "DESCONOCIDO", 0xFFCCCCCC.toInt())
+            }
+
+            binding.tvTipoHistory.text = tipoIngreso
+            binding.tvTipoHistory.setTextColor(color)
+            binding.statusIndicator.setBackgroundColor(color)
+
+            // Formatear fecha
+            val fechaFormateada = formatearFecha(historyItem.createdAt)
+            binding.tvFechaHistory.text = fechaFormateada
+
+            Log.w(TAG, "Item con ID ${historyItem.id} mostrado con datos alternativos")
         }
 
         private fun formatearDNI(dni: String): String {
@@ -82,6 +149,7 @@ class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder
                     dni
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Error formateando DNI: $dni", e)
                 dni
             }
         }
@@ -93,10 +161,12 @@ class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder
                 val date = inputFormat.parse(fechaISO)
                 outputFormat.format(date)
             } catch (e: Exception) {
+                Log.e(TAG, "Error formateando fecha: $fechaISO", e)
                 fechaISO
             }
         }
     }
+
     companion object {
         private val HistoryDiffCallback = object : DiffUtil.ItemCallback<HistoryItem>() {
             override fun areItemsTheSame(oldItem: HistoryItem, newItem: HistoryItem): Boolean {
@@ -104,11 +174,33 @@ class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder
             }
 
             override fun areContentsTheSame(oldItem: HistoryItem, newItem: HistoryItem): Boolean {
-                return oldItem.id == newItem.id &&
-                        oldItem.createdAt == newItem.createdAt &&
-                        oldItem.incomeType == newItem.incomeType &&
-                        oldItem.operario.documentNumber == newItem.operario.documentNumber
+                return try {
+                    oldItem.id == newItem.id &&
+                            oldItem.createdAt == newItem.createdAt &&
+                            oldItem.accessType == newItem.accessType &&
+                            (oldItem.nomina.operario != null && newItem.nomina.operario != null) &&
+                            oldItem.nomina.operario.documentNumber == newItem.nomina.operario.documentNumber
+                } catch (e: Exception) {
+                    Log.e("HistoryDiff", "Error en areContentsTheSame", e)
+                    false
+                }
+            }
+
+            override fun getChangePayload(oldItem: HistoryItem, newItem: HistoryItem): Any? {
+                return if (areContentsTheSame(oldItem, newItem)) {
+                    null
+                } else {
+                    super.getChangePayload(oldItem, newItem)
+                }
             }
         }
     }
+
+    fun diagnosticarEstado(): String {
+        val total = currentItems.size
+        val conOperarioNull = currentItems.count { it.nomina.operario == null }
+        return "Adapter: $total items, $conOperarioNull con operario null"
+    }
+
+
 }
