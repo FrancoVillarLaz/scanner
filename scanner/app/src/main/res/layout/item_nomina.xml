@@ -19,15 +19,14 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <!-- Icono de actividad -->
         <ImageView
             android:id="@+id/ivActividadIcon"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="@android:drawable/ic_menu_agenda"
-            android:tint="#43E9E8"
             android:background="@drawable/icon_circle_background"
             android:padding="10dp"
+            android:tint="#43E9E8"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
@@ -46,7 +45,6 @@
             app:layout_constraintEnd_toStartOf="@id/tvEstado"
             app:layout_constraintTop_toTopOf="@id/ivActividadIcon" />
 
-        <!-- Estado (badge) -->
         <TextView
             android:id="@+id/tvEstado"
             android:layout_width="wrap_content"
@@ -77,7 +75,6 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tvActividad" />
 
-        <!-- Cantidad de ingresos -->
         <TextView
             android:id="@+id/tvCantidadIngresos"
             android:layout_width="0dp"

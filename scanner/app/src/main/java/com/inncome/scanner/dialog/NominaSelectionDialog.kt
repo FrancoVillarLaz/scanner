@@ -2,6 +2,7 @@ package com.inncome.scanner.dialog
 
 
 
+import android.R.attr.clipToPadding
 import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
@@ -10,6 +11,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.view.Window
+import android.view.WindowManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.inncome.scanner.R
@@ -31,6 +33,11 @@ class NominaSelectionDialog(
         binding = DialogNominaSelectionBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        window?.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT
+        )
+
         setupRecyclerView()
         setupCancelButton()
     }
@@ -44,6 +51,14 @@ class NominaSelectionDialog(
         binding.rvNominas.apply {
             layoutManager = LinearLayoutManager(context)
             this.adapter = adapter
+        }
+
+        binding.rvNominas.apply {
+            layoutManager = LinearLayoutManager(context)
+            this.adapter = adapter
+
+            setPadding(0, 0, 0, 0)
+            clipToPadding = false
         }
     }
 

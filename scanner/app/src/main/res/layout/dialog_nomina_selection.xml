@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Complete redesign with app color scheme and improved UX -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -8,7 +7,6 @@
     android:background="@drawable/dialog_background"
     android:padding="0dp">
 
-    <!-- Added decorative header with gradient accent -->
     <View
         android:id="@+id/headerAccent"
         android:layout_width="0dp"
@@ -18,7 +16,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Icon for visual appeal -->
     <ImageView
         android:id="@+id/ivDialogIcon"
         android:layout_width="94dp"
@@ -32,7 +29,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/headerAccent" />
 
-    <!-- Improved title with better typography -->
     <TextView
         android:id="@+id/tvTitulo"
         android:layout_width="0dp"
@@ -78,7 +74,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- RecyclerView with better spacing -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvNominas"
         android:layout_width="0dp"

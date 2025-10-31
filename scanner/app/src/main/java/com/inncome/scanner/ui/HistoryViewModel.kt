@@ -158,8 +158,7 @@ class HistoryViewModel(
                                     "Nóminas encontradas pero sin información del operario"
                                 )
                             }
-                        } else {
-                            if (body?.ingreso != null) {
+                        } else if (body?.ingreso != null)  {
                                 _validationResult.value = ValidationResult.IngresoRegistrado(
                                     "✓ Ingreso registrado exitosamente"
                                 )
@@ -170,7 +169,6 @@ class HistoryViewModel(
                                     "No se encontraron nóminas ni ingresos para el DNI proporcionado"
                                 )
                             }
-                        }
                     }
                     404 -> {
                         _validationResult.value = ValidationResult.Error(

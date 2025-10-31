@@ -29,19 +29,22 @@ class NominaAdapter(
         inner class NominaViewHolder(
             private val binding: ItemNominaBinding
         ) : RecyclerView.ViewHolder(binding.root) {
-
+            init {
+                binding.root.layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
             fun bind(nomina: Nomina) {
                 binding.apply {
                     // ✅ Mostrar actividad
                     tvActividad.text = nomina.actividad.activityName
 
-                    // ✅ Mostrar estado con validación
                     if (nomina.operario == null) {
                         tvEstado.text = "Operario no disponible"
                         tvEstado.setTextColor(0xFFCCCCCC.toInt())
                     } else {
                         tvEstado.text = nomina.status
-                        // Color según estado
                         val statusColor = when (nomina.status.uppercase()) {
                             "ACTIVO" -> 0xFF43E9E8.toInt()
                             "INACTIVO" -> 0xFFFF6B6B.toInt()
@@ -50,10 +53,8 @@ class NominaAdapter(
                         tvEstado.setTextColor(statusColor)
                     }
 
-                    // ✅ Mostrar tipo de ingreso
                     tvTipoIngreso.text = nomina.incomeType
 
-                    // ✅ Click listener
                     root.setOnClickListener {
                         onClick(nomina)
                     }
