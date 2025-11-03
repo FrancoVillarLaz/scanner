@@ -9,6 +9,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.inncome.scanner.data.entities.HistoryItem
 import com.inncome.scanner.databinding.ItemHistoryBinding
 import java.text.SimpleDateFormat
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Locale
 
 class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder>(HistoryDiffCallback) {
@@ -154,12 +157,24 @@ class HistoryAdapter : ListAdapter<HistoryItem, HistoryAdapter.HistoryViewHolder
             }
         }
 
+
         private fun formatearFecha(fechaISO: String): String {
+            val outputFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+
+            val inputFormatFull = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", Locale.getDefault())
+
+            val inputFormatSimple = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+
             return try {
-                val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", Locale.getDefault())
-                val outputFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
-                val date = inputFormat.parse(fechaISO)
+                var date = try {
+                    inputFormatFull.parse(fechaISO)
+                } catch (e: java.text.ParseException) {
+
+                    inputFormatSimple.parse(fechaISO)
+                }
+
                 outputFormat.format(date)
+
             } catch (e: Exception) {
                 Log.e(TAG, "Error formateando fecha: $fechaISO", e)
                 fechaISO

@@ -33,7 +33,7 @@ interface  TrabajadoresApi {
         "Accept: application/json",
         "X-Rol: GUARDIA"
     )
-    @POST("trabajadores-service/ingreso/")
+    @POST("trabajadores-service/ingreso")
     suspend fun registrarIngresoPorNomina(
         @Header ("X-Establecimiento-id") idEstablecimiento: Long,
         @Body request: RegistrarIngresoRequest

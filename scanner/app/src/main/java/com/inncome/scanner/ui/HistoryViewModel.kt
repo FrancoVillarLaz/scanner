@@ -10,8 +10,6 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import com.inncome.scanner.data.entities.Nomina
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-
 
 sealed class HistoryState {
     data object Loading : HistoryState()
@@ -19,6 +17,7 @@ sealed class HistoryState {
     data class Error(val message: String) : HistoryState()
     data object Empty : HistoryState()
 }
+
 sealed class ValidationResult {
     data class SingleNomina(val dni: String) : ValidationResult()
     data class MultipleNominas(val dni: String, val nominas: List<Nomina>) : ValidationResult()
@@ -47,7 +46,6 @@ class HistoryViewModel(
     private var hasMore = true
     private val pageSize = 10
 
-    // ✅ Cargar historial inicial
     fun cargarHistorialInicial(establecimientoId: Long) {
         if (_isLoading.value) return
 
@@ -89,7 +87,6 @@ class HistoryViewModel(
         }
     }
 
-    // ✅ Cargar más datos (paginación)
     fun cargarMasDatos(establecimientoId: Long) {
         if (_isLoading.value || !hasMore) return
 
@@ -132,9 +129,6 @@ class HistoryViewModel(
         }
     }
 
-    // ✅ Validar DNI del operario
-    // En HistoryViewModel.kt, modificar el manejo de la respuesta 200:
-
     fun validarDni(dni: String, establecimientoId: Long) {
         viewModelScope.launch {
             try {
@@ -146,29 +140,26 @@ class HistoryViewModel(
                     202 -> {
                         val body = response.body()
                         if (body?.nominas != null && body.nominas.isNotEmpty()) {
-                            // ✅ FILTRAR nóminas que tengan operario
                             val nominasValidas = body.nominas.filter { it.operario != null }
 
                             if (nominasValidas.isNotEmpty()) {
                                 _validationResult.value = ValidationResult.MultipleNominas(dni, nominasValidas)
                             } else {
-                                // ✅ Si todas las nóminas tienen operario null
                                 _validationResult.value = ValidationResult.Error(
                                     200,
                                     "Nóminas encontradas pero sin información del operario"
                                 )
                             }
-                        } else if (body?.ingreso != null)  {
-                                _validationResult.value = ValidationResult.IngresoRegistrado(
-                                    "✓ Ingreso registrado exitosamente"
-                                )
-
-                        }else {
-                                _validationResult.value = ValidationResult.Error(
-                                    200,
-                                    "No se encontraron nóminas ni ingresos para el DNI proporcionado"
-                                )
-                            }
+                        } else if (body?.ingreso != null) {
+                            _validationResult.value = ValidationResult.IngresoRegistrado(
+                                "✓ Ingreso registrado exitosamente"
+                            )
+                        } else {
+                            _validationResult.value = ValidationResult.Error(
+                                200,
+                                "No se encontraron nóminas ni ingresos para el DNI proporcionado"
+                            )
+                        }
                     }
                     404 -> {
                         _validationResult.value = ValidationResult.Error(
@@ -199,16 +190,14 @@ class HistoryViewModel(
         }
     }
 
-    // ✅ Registrar ingreso por nómina
     fun registrarIngresoPorNomina(establecimientoId: Long, nominaId: String) {
         viewModelScope.launch {
             try {
                 val response = repository.registrarIngresoPorNomina(establecimientoId, nominaId)
 
-                if (response.isSuccessful) {
-                    _validationResult.value = ValidationResult.IngresoRegistrado(
-                        "✓ Ingreso registrado exitosamente"
-                    )
+                if (response.code() == 201) {
+                    Log.i("ingreso por nomina", "✓ Ingreso registrado exitosamente")
+                    _validationResult.value = ValidationResult.IngresoRegistrado("Ingreso por nómina exitoso")
                 } else {
                     _validationResult.value = ValidationResult.Error(
                         response.code(),
@@ -225,7 +214,6 @@ class HistoryViewModel(
         }
     }
 
-    // ✅ Cargar último ingreso y agregarlo al inicio
     fun cargarUltimoIngreso(establecimientoId: Long) {
         viewModelScope.launch {
             try {
@@ -248,7 +236,6 @@ class HistoryViewModel(
         }
     }
 
-    // ✅ Agregar ingreso al inicio de la lista
     private fun agregarIngresoAlInicio(ingreso: HistoryItem, totalCount: Int) {
         val estadoActual = _historial.value
 
@@ -275,12 +262,10 @@ class HistoryViewModel(
         }
     }
 
-    // ✅ Limpiar resultado de validación
     fun clearValidationResult() {
         _validationResult.value = null
     }
 
-    // ✅ Validar integridad de datos
     private fun validarIntegridadDatos(lista: List<HistoryItem>): List<HistoryItem> {
         val itemsValidos = lista.filter { item ->
             val esValido = item.nomina.operario != null &&
@@ -297,7 +282,6 @@ class HistoryViewModel(
         return itemsValidos
     }
 
-    // ✅ Reset de paginación
     fun resetPagination() {
         currentPage = 0
         hasMore = true

@@ -100,7 +100,8 @@ class ScannerActivity : AppCompatActivity() {
 
     private fun createPDF417Analyzer(): PDF417Analyzer {
         return PDF417Analyzer(
-            onBarcodeDetected = { text ->
+            // Cambiar 'text' por 'rawData' y agregar 'dniData'
+            onBarcodeDetected = { rawData, dniData ->
                 val now = System.currentTimeMillis()
                 if (now - lastScanTime > 2000 && !isProcessing) {
                     lastScanTime = now
@@ -108,8 +109,12 @@ class ScannerActivity : AppCompatActivity() {
                     runOnUiThread {
                         binding.tvStatus.text = "Código detectado"
                     }
-                    val dni = extraerDNI(text)
-                    if (dni.isBlank()) {
+
+                    // Usar el DNI parseado por el Analyzer
+                    // El Analyzer ya hizo el trabajo de parsing, solo hay que usar el resultado.
+                    val dni = dniData?.dni
+
+                    if (dni.isNullOrBlank()) { // Verificar si es nulo o vacío
                         runOnUiThread {
                             Toast.makeText(this, "No se pudo extraer el DNI", Toast.LENGTH_SHORT).show()
                             binding.tvStatus.text = "Listo para escanear"
@@ -129,7 +134,6 @@ class ScannerActivity : AppCompatActivity() {
             }
         )
     }
-
     private fun observeValidationResult() {
         lifecycleScope.launch {
             historyViewModel.validationResult.collect { result ->

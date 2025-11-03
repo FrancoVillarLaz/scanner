@@ -15,30 +15,24 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.inncome.scanner.adapter.HistoryAdapter
 import com.inncome.scanner.databinding.ActivityMainBinding
-import com.inncome.scanner.analyzer.PDF417Analyzer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.view.View
 import androidx.activity.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.BinaryBitmap
-import com.google.zxing.DecodeHintType
-import com.google.zxing.MultiFormatReader
-import com.google.zxing.NotFoundException
-import com.google.zxing.PlanarYUVLuminanceSource
-import com.google.zxing.common.HybridBinarizer
+import kotlinx.coroutines.launch
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import com.inncome.scanner.analyzer.PDF417Analyzer
+import com.inncome.scanner.data.DniData
 import com.inncome.scanner.data.entities.Nomina
 import com.inncome.scanner.dialog.NominaSelectionDialog
 import com.inncome.scanner.ui.HistoryState
 import com.inncome.scanner.ui.HistoryViewModel
 import com.inncome.scanner.ui.ValidationResult
+
 import kotlinx.coroutines.launch
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import com.google.zxing.*
-import java.nio.ByteBuffer
 
 class MainActivity : AppCompatActivity() {
 
@@ -59,6 +53,11 @@ class MainActivity : AppCompatActivity() {
     private var isProcessing = false
     private val establecimientoId: Long = 1
 
+    private var lastFocusTime = 0L
+    private var lastSharp = false
+    private var camera: Camera? = null
+    private var processingTimeoutRunnable: Runnable? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -70,21 +69,17 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         observeViewModel()
 
-        // ✅ Cargar historial inicial
         historyViewModel.cargarHistorialInicial(establecimientoId)
 
-        // ✅ Iniciar cámara
         if (allPermissionsGranted()) {
             startCamera()
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
-        // ✅ Configurar scan frame
         setupScanFrame()
     }
 
-    // ✅ Configurar RecyclerView y paginación
     private fun setupRecyclerView() {
         historyAdapter = HistoryAdapter()
 
@@ -92,46 +87,50 @@ class MainActivity : AppCompatActivity() {
             adapter = historyAdapter
             layoutManager = LinearLayoutManager(this@MainActivity)
 
-            // ✅ Callback de paginación
             historyAdapter.onLoadMore = {
                 historyViewModel.cargarMasDatos(establecimientoId)
             }
         }
     }
 
-    // ✅ Observar cambios del ViewModel
     private fun observeViewModel() {
-        // Observar estado del historial
         lifecycleScope.launch {
             historyViewModel.historial.collect { state ->
                 when (state) {
                     is HistoryState.Loading -> {
-                        // Opcional: Mostrar loading
+                        // Mostrar loading si querés
                     }
-                    is HistoryState.Success -> {
-                        historyAdapter.submitList(state.items)
-                        historyAdapter.setLoadingState(false)
 
+                    is HistoryState.Success -> {
+                        historyAdapter.submitList(state.items) {
+                            binding.rvHistoryIngresos.post {
+                                binding.rvHistoryIngresos.smoothScrollToPosition(0)
+                            }
+                        }
+
+                        historyAdapter.setLoadingState(false)
                         binding.tvHistoryCount.text =
                             "${state.totalCount} registro${if (state.totalCount != 1) "s" else ""}"
+
                         binding.emptyStateHistory.visibility = View.GONE
                         binding.rvHistoryIngresos.visibility = View.VISIBLE
+                    }
 
-                        Log.d(TAG, "✅ Historial actualizado: ${state.items.size} items")
-                    }
-                    is HistoryState.Error -> {
-                        Toast.makeText(this@MainActivity, state.message, Toast.LENGTH_SHORT).show()
-                        historyAdapter.setLoadingState(false)
-                    }
                     is HistoryState.Empty -> {
-                        mostrarEstadoVacio()
-                        historyAdapter.setLoadingState(false)
+                        historyAdapter.submitList(emptyList())
+                        binding.tvHistoryCount.text = "0 registros"
+                        binding.emptyStateHistory.visibility = View.VISIBLE
+                        binding.rvHistoryIngresos.visibility = View.GONE
+                    }
+
+                    is HistoryState.Error -> {
+                        Log.e("History", "Error cargando historial: ${state.message}")
+                        // Podés mostrar un toast o un banner más adelante
                     }
                 }
             }
         }
 
-        // Observar resultado de validación
         lifecycleScope.launch {
             historyViewModel.validationResult.collect { result ->
                 result?.let {
@@ -141,7 +140,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Observar estado de carga
         lifecycleScope.launch {
             historyViewModel.isLoading.collect { isLoading ->
                 historyAdapter.setLoadingState(isLoading)
@@ -149,7 +147,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ Manejar resultados de validación
     private fun handleValidationResult(result: ValidationResult) {
         when (result) {
             is ValidationResult.MultipleNominas -> {
@@ -158,7 +155,6 @@ class MainActivity : AppCompatActivity() {
             is ValidationResult.IngresoRegistrado -> {
                 Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
 
-                // ✅ Recargar último ingreso después de un pequeño delay
                 binding.root.postDelayed({
                     historyViewModel.cargarUltimoIngreso(establecimientoId)
                     animarContador()
@@ -171,13 +167,11 @@ class MainActivity : AppCompatActivity() {
                 isProcessing = false
             }
             is ValidationResult.SingleNomina -> {
-                // Este caso podría no usarse si el backend siempre retorna 201 o 200
                 isProcessing = false
             }
         }
     }
 
-    // ✅ Configurar BottomSheet
     private fun setupBottomSheet() {
         bottomSheetBehavior = BottomSheetBehavior.from(binding.bottomSheetHistory)
 
@@ -204,7 +198,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ Configurar frame de escaneo
     private fun setupScanFrame() {
         binding.root.post {
             val loc = IntArray(2)
@@ -228,7 +221,6 @@ class MainActivity : AppCompatActivity() {
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
 
-            // ✅ DETECTAR DISPOSITIVO DE BAJA GAMA
             val isLowEndDevice = isLowEndDevice()
 
             val previewResolution = if (isLowEndDevice) Size(640, 480) else Size(1280, 720)
@@ -246,23 +238,56 @@ class MainActivity : AppCompatActivity() {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also {
-                    it.setAnalyzer(cameraExecutor, createOptimizedPDF417Analyzer(isLowEndDevice))
+                    it.setAnalyzer(cameraExecutor, createMLKitAnalyzer())
                 }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
             try {
                 cameraProvider.unbindAll()
-                val camera = cameraProvider.bindToLifecycle(
+                camera = cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalyzer
                 )
-                setupAutoFocus(camera)
+                setupSmartAutoFocus()
             } catch (e: Exception) {
                 Log.e(TAG, "Error al iniciar cámara", e)
-                // ✅ FALLBACK: intentar con resolución más baja
                 tryFallbackCameraSetup(cameraProvider)
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    /**
+     * Configura el autofocus en la parte SUPERIOR de la cámara
+     * Esto mejora el escaneo de códigos PDF417 que están en la parte superior del DNI
+     */
+    private fun setupSmartAutoFocus() {
+        binding.viewFinder.post {
+            try {
+                val factory = binding.viewFinder.meteringPointFactory
+
+                val isLowEnd = isLowEndDevice()
+                val topPoint = if (isLowEnd) factory.createPoint(0.5f, 0.35f) // más central, más estable
+                else factory.createPoint(0.5f, 0.25f)
+                val upperPoint = if (!isLowEnd) factory.createPoint(0.5f, 0.15f) else null
+
+                val builder = FocusMeteringAction.Builder(topPoint, FocusMeteringAction.FLAG_AF)
+                upperPoint?.let { builder.addPoint(it, FocusMeteringAction.FLAG_AF) }
+                builder.setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS)
+
+                val action = builder.build()
+                camera?.cameraControl?.startFocusAndMetering(action)
+
+                Log.d(TAG, "🎯 Auto-focus aplicado (LowEnd=$isLowEnd)")
+
+                if (!isLowEnd) {
+                    val interval = 2000L
+                    binding.viewFinder.postDelayed({ setupSmartAutoFocus() }, interval)
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error en auto-focus: ${e.message}")
+            }
+        }
     }
 
     private fun isLowEndDevice(): Boolean {
@@ -281,17 +306,18 @@ class MainActivity : AppCompatActivity() {
                 }
 
             val imageAnalyzer = ImageAnalysis.Builder()
-                .setTargetResolution(Size(480, 360)) // ✅ RESOLUCIÓN MUY BAJA
+                .setTargetResolution(Size(480, 360))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also {
-                    it.setAnalyzer(cameraExecutor, createLowEndPDF417Analyzer())
+                    it.setAnalyzer(cameraExecutor, createMLKitAnalyzer())
                 }
 
             cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
+            camera = cameraProvider.bindToLifecycle(
                 this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalyzer
             )
+            setupSmartAutoFocus()
 
             Log.d(TAG, "✅ Cámara iniciada en modo baja resolución")
         } catch (e: Exception) {
@@ -299,60 +325,72 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Error crítico de cámara", Toast.LENGTH_LONG).show()
         }
     }
-    // ✅ CONFIGURAR AUTOFOCUS MÁS SIMPLE
-    private fun setupAutoFocus(camera: Camera) {
-        binding.viewFinder.post {
-            try {
-                val factory = binding.viewFinder.meteringPointFactory
-                val point = factory.createPoint(0.8f, 0.8f) // ✅ SOLO CENTRO
 
-                val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
-                    .setAutoCancelDuration(2, java.util.concurrent.TimeUnit.SECONDS) // ✅ MENOS TIEMPO
-                    .build()
+    /**
+     * Crea el analyzer con ML Kit de Google
+     */
+    private fun createMLKitAnalyzer(): PDF417Analyzer {
+        return PDF417Analyzer(
+            onBarcodeDetected = { rawData, dniData ->
+                val now = System.currentTimeMillis()
+                if (now - lastScanTime > 2000 && !isProcessing) {
+                    lastScanTime = now
+                    isProcessing = true
 
-                camera.cameraControl.startFocusAndMetering(action)
-
-                // ✅ INTERVALO MAYOR EN BAJA GAMA
-                val interval = if (isLowEndDevice()) 2000L else 1000L
-                binding.viewFinder.postDelayed({
-                    setupAutoFocus(camera)
-                }, interval)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Error en autofocus: ${e.message}")
-                // ✅ NO REINTENTAR SI FALLA
+                    runOnUiThread {
+                        procesarDNI(rawData, dniData)
+                    }
+                }
+            },
+            onError = { error ->
+                runOnUiThread {
+                    Log.e(TAG, "Error en ML Kit: ${error.message}")
+                    isProcessing = false
+                }
             }
-        }
+        )
     }
-    // ✅ AGREGAR ESTA VARIABLE
-    private var processingTimeoutRunnable: Runnable? = null
 
-    private fun procesarPDF417(data: String) {
-        // ✅ LIMPIAR TIMEOUT ANTERIOR
+    /**
+     * Procesa el DNI detectado y lo envía a validación
+     */
+    private fun procesarDNI(rawData: String, dniData: DniData?) {
         processingTimeoutRunnable?.let { binding.root.removeCallbacks(it) }
 
-        Log.d(TAG, "🔍 Procesando código: $data")
+        Log.d(TAG, "🔍 ==========================================")
+        Log.d(TAG, "🔍 PROCESANDO DNI CON ML KIT")
+        Log.d(TAG, "🔍 ==========================================")
 
-        val dni = extraerDNI(data)
-        Log.d(TAG, "📋 DNI extraído: '$dni'")
-
-        if (dni.isEmpty()) {
-            Log.d(TAG, "❌ No se pudo extraer DNI")
+        if (dniData == null) {
+            Log.e(TAG, "❌ No se pudo parsear el DNI")
+            Log.d(TAG, "📦 Datos crudos: $rawData")
+            Toast.makeText(this, "DNI no válido", Toast.LENGTH_SHORT).show()
             resetProcessingState()
             return
         }
 
-        // ✅ TIMEOUT POR SI FALLA EL VIEWMODEL
+        // Validar que el DNI sea válido
+        if (!dniData.isValid()) {
+            Log.e(TAG, "❌ DNI inválido después de parseo")
+            Toast.makeText(this, "DNI inválido: ${dniData.dni}", Toast.LENGTH_SHORT).show()
+            resetProcessingState()
+            return
+        }
+
+        Log.d(TAG, "✅ DNI VÁLIDO - Enviando a validación")
+        Log.d(TAG, "🆔 DNI: ${dniData.dni}")
+        Log.d(TAG, "👤 Nombre completo: ${dniData.getNombreCompleto()}")
+
+        // Timeout de seguridad
         processingTimeoutRunnable = Runnable {
             Log.e(TAG, "⏰ Timeout en procesamiento")
             resetProcessingState()
             Toast.makeText(this, "Timeout en escaneo", Toast.LENGTH_SHORT).show()
         }
-        binding.root.postDelayed(processingTimeoutRunnable!!, 10000) // 10 segundos
+        binding.root.postDelayed(processingTimeoutRunnable!!, 10000)
 
-        // ✅ Delegar al ViewModel
-        Log.d(TAG, "✅ DNI válido: $dni, enviando a validación...")
-        historyViewModel.validarDni(dni, establecimientoId)
+        // Enviar a validación
+        historyViewModel.validarDni(dniData.dni, establecimientoId)
     }
 
     private fun resetProcessingState() {
@@ -371,200 +409,12 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-
-
-
-    private fun createLowEndPDF417Analyzer(): ImageAnalysis.Analyzer {
-        return ImageAnalysis.Analyzer { imageProxy ->
-            val currentTime = System.currentTimeMillis()
-
-            // 🛡️ 1. Control de Tasa (Throttling) para baja gama
-            // Espera 3 segundos (3000 ms) entre escaneos para no saturar la CPU.
-            if (currentTime - lastScanTime < 3000 || isProcessing) {
-                imageProxy.close()
-                return@Analyzer
-            }
-
-            // 🛡️ Bloquea el procesamiento para evitar analizar el mismo frame más de una vez
-            isProcessing = true
-
-            try {
-                // 💡 SOLUCIÓN AQUÍ: Convertir de ImageProxy (YUV) a un solo ByteArray (NV21)
-                // Necesitas esta función para manejar los 3 planos YUV y el padding
-                val data = imageProxy.toNV21ByteArray()
-
-                val source = PlanarYUVLuminanceSource(
-                    data,
-                    imageProxy.width,
-                    imageProxy.height,
-                    0, 0,
-                    imageProxy.width,
-                    imageProxy.height,
-                    false
-                )
-
-                val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-
-                val reader = MultiFormatReader().apply {
-                    val hints = mapOf(
-                        DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.PDF_417),
-                        DecodeHintType.TRY_HARDER to false, // ✅ Optimización clave: Desactivado para velocidad
-                        DecodeHintType.PURE_BARCODE to true
-                    )
-                    setHints(hints)
-                }
-
-                val result = reader.decode(binaryBitmap)
-
-                lastScanTime = currentTime
-                // isProcessing se reiniciará en el runOnUiThread para evitar bloqueos
-
-                // 📞 Enviar resultado al hilo principal (UI)
-                runOnUiThread {
-                    Log.d(TAG, "📦 Código detectado en baja gama: ${result.text}")
-                    procesarPDF417(result.text)
-                    isProcessing = false // Permite el siguiente escaneo
-                }
-
-            } catch (e: NotFoundException) {
-                // Silencioso, el código no fue encontrado en este frame
-                isProcessing = false
-            } catch (e: Exception) {
-                Log.e(TAG, "Error en análisis baja gama: ${e.message}")
-                // Aseguramos que el bloqueo se libere ante otros errores
-                runOnUiThread {
-                    isProcessing = false
-                }
-            } finally {
-                // MUY IMPORTANTE: liberar el buffer de la imagen
-                imageProxy.close()
-            }
-        }
-    }
-
-// --- Función de Extensión Necesaria (Reemplaza a buffer.toByteArray()) ---
-
-    /**
-     * Convierte los 3 planos (YUV) de un ImageProxy a un solo ByteArray en formato NV21.
-     * NOTA: Esta implementación debe estar en un archivo de utilidades o en la misma clase.
-     */
-    fun ImageProxy.toNV21ByteArray(): ByteArray {
-        val planes = this.planes
-        val yPlane = planes[0]
-        val uPlane = planes[1]
-        val vPlane = planes[2]
-
-        val yBuffer = yPlane.buffer
-        val uBuffer = uPlane.buffer
-        val vBuffer = vPlane.buffer
-
-        // Mover el buffer al inicio para leerlo
-        yBuffer.rewind()
-        uBuffer.rewind()
-        vBuffer.rewind()
-
-        val ySize = yBuffer.remaining()
-
-        // La luminancia (Y) tiene todos los datos, la crominancia (U/V) suele ser 1/4 del total.
-        val data = ByteArray(ySize + ySize / 2)
-
-        // Copia de Y (Luminancia)
-        yBuffer.get(data, 0, ySize)
-
-        // Copia de V y U (Crominancia) en formato intercalado (NV21 es YYYYVUVU)
-        var offset = ySize
-        val vRowStride = vPlane.rowStride
-        val uRowStride = uPlane.rowStride
-        val vPixelStride = vPlane.pixelStride
-        val uPixelStride = uPlane.pixelStride
-
-        // Si los strides no son simples, se debe copiar byte por byte (más lento, pero necesario)
-        if (vPixelStride == 1 && uPixelStride == 1 && vRowStride == uRowStride) {
-            // Optimización para el caso ideal (más rápido)
-            vBuffer.get(data, offset, ySize / 4)
-            uBuffer.get(data, offset + ySize / 4, ySize / 4)
-        } else {
-            // Caso lento y seguro (maneja el padding en los lados de la imagen)
-            for (i in 0 until this.height / 2) {
-                vBuffer.get(data, offset, this.width / 2)
-                offset += this.width / 2
-
-                uBuffer.get(data, offset, this.width / 2)
-                offset += this.width / 2
-
-                // Salta los bytes de padding de la cámara si existen
-                if (i < this.height / 2 - 1) {
-                    vBuffer.position(vBuffer.position() + vRowStride - this.width / 2)
-                    uBuffer.position(uBuffer.position() + uRowStride - this.width / 2)
-                }
-            }
-        }
-
-        return data
-    }
-//
-
-    private fun createOptimizedPDF417Analyzer(forLowEnd: Boolean = false): ImageAnalysis.Analyzer {
-        return if (forLowEnd) {
-            createLowEndPDF417Analyzer()
-        } else {
-            // Tu analyzer normal para dispositivos buenos
-            PDF417Analyzer(
-                onBarcodeDetected = { barcodeText ->
-                    val now = System.currentTimeMillis()
-                    if (now - lastScanTime > 2000 && !isProcessing) {
-                        lastScanTime = now
-                        isProcessing = true
-                        runOnUiThread {
-                            procesarPDF417(barcodeText)
-                        }
-                    }
-                },
-                onError = { error ->
-                    runOnUiThread {
-                        Log.e(TAG, "Error en análisis: ${error.message}")
-                        isProcessing = false
-                    }
-                }
-            )
-        }
-    }
-
-    private fun extraerDNI(data: String): String {
-        Log.d(TAG, "🎯 Intentando extraer DNI de: $data")
-
-        return if (data.contains("@")) {
-            val campos = data.split("@")
-            Log.d(TAG, "📊 Campos encontrados: ${campos.size}")
-
-            campos.forEachIndexed { index, campo ->
-                Log.d(TAG, "   [$index]: '$campo' (longitud: ${campo.length})")
-            }
-
-            // Buscar campo que contenga solo números (DNI)
-            val dniCampo = campos.find { campo ->
-                campo.trim().matches(Regex("\\d+")) && campo.trim().length in 7..9
-            }
-
-            // Si no encontramos por patrón, usar campo 4 como fallback
-            val dni = dniCampo ?: if (campos.size >= 5) campos[4].trim() else ""
-
-            Log.d(TAG, "🎯 DNI extraído: '$dni'")
-            dni
-        } else {
-            Log.d(TAG, "❌ No se encontró el caracter @ en el código")
-            ""
-        }
-    }
-
-    // ✅ Mostrar estado vacío
     private fun mostrarEstadoVacio() {
         binding.emptyStateHistory.visibility = View.VISIBLE
         binding.rvHistoryIngresos.visibility = View.GONE
         binding.tvHistoryCount.text = "0 registros"
     }
 
-    // ✅ Animación del contador
     private fun animarContador() {
         binding.tvHistoryCount.animate()
             .scaleX(1.2f)
@@ -580,7 +430,6 @@ class MainActivity : AppCompatActivity() {
             .start()
     }
 
-    // ✅ Verificar permisos
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
@@ -599,27 +448,6 @@ class MainActivity : AppCompatActivity() {
                 finish()
             }
         }
-    }
-    private fun createOptimizedPDF417Analyzer(): PDF417Analyzer {
-        return PDF417Analyzer(
-            onBarcodeDetected = { barcodeText ->
-                val now = System.currentTimeMillis()
-                if (now - lastScanTime > 2000 && !isProcessing) {
-                    lastScanTime = now
-                    isProcessing = true
-                    runOnUiThread {
-                        Log.d(TAG, "📦 Código crudo detectado: $barcodeText")
-                        procesarPDF417(barcodeText)
-                    }
-                }
-            },
-            onError = { error ->
-                runOnUiThread {
-                    Log.e(TAG, "Error en análisis: ${error.message}")
-                    isProcessing = false
-                }
-            }
-        )
     }
 
     override fun onDestroy() {
